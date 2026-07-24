@@ -187,6 +187,8 @@ tr.sel { background: #eef4ff; }
 .scroll-x { overflow-x: auto; }
 /* 헤더만 가운데 정렬 (데이터 셀은 그대로) */
 .grid.center-head thead th { text-align: center; }
+/* 항목(헤더)은 가운데, 값(데이터)은 좌측 정렬 — .num 의 우측정렬을 덮어씀(색상은 유지) */
+.grid.data-left tbody td { text-align: left; }
 /* 헤더+데이터 모두 가운데 정렬 */
 .grid.center-all th, .grid.center-all td { text-align: center; }
 

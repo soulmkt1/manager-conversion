@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { updateRow, moveRow, deleteMany } from '../lib/supabase.js'
 import { toCSV, downloadCSV } from '../lib/stats.js'
 import { matchDate } from '../lib/datefilter.js'
+import { normalizeName } from '../lib/parser.js'
 import DateFilter from '../components/DateFilter.jsx'
 
 const PAGE_SIZE = 100 // 한 번에 그리는 행 수 (많은 행을 한꺼번에 그리면 느려짐)
@@ -15,7 +16,7 @@ const VIEWS = {
       { key: 'manager', label: '실장', w: 76 },
       { key: 'channel', label: '채널', w: 90 },
       { key: 'customer_name', label: '고객명', w: 120 },
-      { key: 'status_raw', label: '상담 내용', w: 220 },
+      { key: 'status_raw', label: '상담 내용', w: 340 },
       { key: 'result_category', label: '분류', w: 90 },
     ],
     filters: [
@@ -69,9 +70,9 @@ const Cell = memo(function Cell({ rowId, col, value, onCommit }) {
 })
 
 // 행: 값이 바뀌지 않은 행은 다시 그리지 않음
-const Row = memo(function Row({ row, columns, checked, onToggle, onCommit }) {
+const Row = memo(function Row({ row, columns, checked, isDup, onToggle, onCommit }) {
   return (
-    <tr className={(row.is_duplicate ? 'dup ' : '') + (checked ? 'sel' : '')}>
+    <tr className={(isDup ? 'dup ' : '') + (checked ? 'sel' : '')}>
       <td className="chk-col"><input type="checkbox" checked={checked} onChange={() => onToggle(row.id)} /></td>
       {columns.map((c) => (
         <td key={c.key}><Cell rowId={row.id} col={c} value={row[c.key]} onCommit={onCommit} /></td>
@@ -104,6 +105,19 @@ export default function Records({ data, onChange }) {
     return m
   }, [data, view, cfg])
   const allDates = useMemo(() => (data[view] || []).map((r) => r.report_date), [data, view])
+
+  // 중복 표시(빨간 배경)는 저장된 is_duplicate 값이 아니라 '지금 남아있는 데이터'로 계산한다.
+  // → 2건 중 1건을 지우면 남은 1건의 색이 바로 원래대로 돌아온다.
+  const dupKeys = useMemo(() => {
+    if (view !== 'leads') return new Set()
+    const counts = new Map()
+    for (const r of rows) {
+      const k = normalizeName(r.customer_name)
+      if (!k) continue
+      counts.set(k, (counts.get(k) || 0) + 1)
+    }
+    return new Set([...counts].filter(([, n]) => n > 1).map(([k]) => k))
+  }, [rows, view])
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
@@ -225,7 +239,8 @@ export default function Records({ data, onChange }) {
           </thead>
           <tbody>
             {pageRows.map((r) => (
-              <Row key={r.id} row={r} columns={cfg.columns} checked={selected.has(r.id)} onToggle={toggleOne} onCommit={commit} />
+              <Row key={r.id} row={r} columns={cfg.columns} checked={selected.has(r.id)}
+                isDup={dupKeys.has(normalizeName(r.customer_name))} onToggle={toggleOne} onCommit={commit} />
             ))}
             {filtered.length === 0 && <tr><td colSpan={cfg.columns.length + 1} className="muted center">데이터 없음</td></tr>}
           </tbody>
