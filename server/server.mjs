@@ -46,6 +46,18 @@ const app = express()
 app.set('trust proxy', 1) // Railway 등 프록시 뒤에서 실제 클라이언트 IP 인식
 app.use(express.json({ limit: '8mb' }))
 
+// ── 진단(배포 점검용): 비밀값은 노출하지 않고 설정 '여부'와 DB 위치만 ──
+app.get('/api/health', (_req, res) => {
+  res.json({
+    ok: true,
+    node: process.version,
+    appPasswordSet: !!process.env.APP_PASSWORD, // 값이 아니라 설정 여부만
+    dataDirEnv: process.env.DATA_DIR || null,
+    dbDir: dirname(DB_PATH),                    // 볼륨(/data)에 저장 중인지 확인용
+    dbExists: existsSync(DB_PATH),
+  })
+})
+
 // ── 인증 ────────────────────────────────────────────────────────
 // 로그인 무차별 대입 차단: IP별로 5분간 10회 실패 시 잠시 차단
 const loginFails = new Map() // ip -> { count, first }
