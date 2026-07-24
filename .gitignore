@@ -1,0 +1,8 @@
+node_modules
+dist
+server/data
+server/config.json
+server/bin
+.claude
+.DS_Store
+*.log
