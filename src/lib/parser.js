@@ -173,7 +173,10 @@ function looksLikeNameToken(t) {
   return /^[가-힣]{2,4}[.,·]?$/.test(t)
 }
 // 토큰 묶음 전체가 이름 표기로 보이는지 (예: "서 녕" — 한 글자씩 띄어 쓴 이름)
+// 단, 상태어가 하나라도 섞여 있으면 이름이 아니다("solee lee 부재" → 이름+상태).
 function allTokensNameLike(tokens) {
+  if (tokens.some((t) => STATUS_START_MARKERS.some((mk) => t.includes(mk)))) return false
+  if (tokens.some((t) => t.includes('/'))) return false // "복/", "팔/톡막" 같은 부위 표기 = 상담 내용
   return tokens.length <= 3 && tokens.every((t) => t.length <= 2 || !/[가-힣]{3,}/.test(t))
 }
 
