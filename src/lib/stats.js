@@ -58,7 +58,7 @@ export function statsByChannel(leads) {
 
 // 결과분류 분포
 export function statsByResult(leads) {
-  const order = ['내상·예약', '진행중', '부재', '취소', '중복', '기타']
+  const order = ['내상·예약', '진행중', '부재', '취소', '불량', '중복', '기타']
   const map = {}
   for (const l of leads) map[l.result_category || '기타'] = (map[l.result_category || '기타'] || 0) + 1
   return order.filter((k) => map[k]).map((k) => ({ name: k, value: map[k] }))

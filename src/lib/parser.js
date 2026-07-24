@@ -8,7 +8,7 @@
 // ── 채널 표준화 (기본값) ──────────────────────────────────────
 // 공급 줄의 유입 채널 토큰 → 표준 채널명. 관리 페이지에서 수정 가능.
 export const DEFAULT_CHANNEL_MAP = {
-  플: '플러스친구',
+  플: '플친',
   지: '지오',
   지오: '지오',
   바비: '바비톡',
@@ -29,7 +29,8 @@ const MANAGER_ALIASES = {
 // ── 상태 → 결과 분류 키워드 (기본값) ──────────────────────────
 // 우선순위 순서로 검사한다 (위에서 먼저 매칭되면 확정). 관리 페이지에서 수정 가능.
 export const DEFAULT_RESULT_RULES = [
-  { category: '취소', keywords: ['취소', '수술x', '수술 안', '신청한 적', '문의한 적', '잘못', '불량', '없는전화', '없는 전화'] },
+  { category: '불량', keywords: ['불량', '결번', '없는번호', '없는 번호', '없는전화', '없는 전화'] },
+  { category: '취소', keywords: ['취소', '수술x', '수술 안', '신청한 적', '문의한 적', '잘못'] },
   { category: '중복', keywords: ['중복', '기존디비', '이전 디비', '이전디비', '토스'] },
   { category: '내상·예약', keywords: ['내상', '내원', '상후', '상담', 'op', '예약', '내일', '확정', '조율', '내상유도', '내상 유도', '컨펌'] },
   { category: '부재', keywords: ['부재', '안받', '안 받', '안읽', '안 읽', '안 읽으심', '읽으심', '읽지', '잠수', '문부', '연락 없', '답 없', '답없', '끊', '거절', '읽고 답'] },
@@ -42,6 +43,9 @@ const STATUS_START_MARKERS = [
   '비용', '진행', '확인', '조율', '잠수', '리콜', '날짜', '이벤트', '금액', '문의',
   '안읽', '안 읽', '안', '안받', '안 받', '기존', '이전', '정보', '당일', '당장', '전화',
   '읽', '위치', '카드', '토스', '수술', '무료', '고민', '생각', '초등', '미성년',
+  // 실제 데이터에서 확인된 상담내용 시작 어휘
+  '잘못', '퇴근', '일중', '거주', '답장', '예약금', '유도', '남편', '허락', '저렴',
+  '알아본', '알아보', '결번', '불량', '없는', '연결', '통화', '바쁘', '나중',
 ]
 
 const norm = (s) => (s || '').replace(/\s+/g, ' ').trim()
@@ -147,6 +151,8 @@ function detectSection(line) {
   if (/^(총\s*)?공급/.test(l)) return { section: 'supply', count: firstInt(l) }
   if (/^티켓팅|^티\b|^티\d|^티 /.test(l)) return { section: 'ticketing', count: firstInt(l) }
   if (/^내원/.test(l)) return { section: 'visit', count: firstInt(l) }
+  // 공급 보고서 안의 "리콜" 소제목 → 이후 줄은 리콜 명단(상담 내용과 분리)
+  if (/^리콜/.test(l)) return { section: 'recall' }
   if (/^내일\s*내원|^내일내원/.test(l)) return { section: 'skip' }
   if (/^내일\s*상담|^내일상담|^내일\s*내상/.test(l)) return { section: 'skip' }
   if (/^전자차트/.test(l)) return { section: 'chart', chart: parenContent(l) }
@@ -162,8 +168,26 @@ function parenContent(s) {
   return m ? m[1].trim() : ''
 }
 
+// 한국 이름 한 덩어리로 보이는 토큰 (한글 2~4자)
+function looksLikeNameToken(t) {
+  return /^[가-힣]{2,4}[.,·]?$/.test(t)
+}
+// 토큰 묶음 전체가 이름 표기로 보이는지 (예: "서 녕" — 한 글자씩 띄어 쓴 이름)
+function allTokensNameLike(tokens) {
+  return tokens.length <= 3 && tokens.every((t) => t.length <= 2 || !/[가-힣]{3,}/.test(t))
+}
+
 // 이름 토큰들에서 상태 시작 지점 찾기 → {name, status}
 function splitNameStatus(tokens) {
+  if (tokens.length <= 1) return { name: norm(tokens.join(' ')), status: '' }
+  // "서 녕"처럼 짧은 토막들로만 이루어진 표기는 통째로 이름
+  if (allTokensNameLike(tokens)) return { name: norm(tokens.join(' ')), status: '' }
+  // 첫 토큰이 한글 2~4자 이름꼴이면 그것만 이름, 나머지는 전부 상담 내용
+  // (상태어 목록에 없는 문장이 이름에 붙는 문제를 근본적으로 막음)
+  if (looksLikeNameToken(tokens[0])) {
+    return { name: tokens[0].replace(/[.,·]$/, ''), status: norm(tokens.slice(1).join(' ')) }
+  }
+  // 그 외(외국어·특수표기 이름 등)는 기존처럼 상태어 위치로 분리
   let splitIdx = tokens.length
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i]
@@ -202,7 +226,7 @@ function parseLeadLine(line, channelMap) {
 
 // 저장된 고객명 안에 섞인 채널 토큰 분리 (관리페이지 "기존 데이터 재적용"용)
 // "김주희 지" → {name:'김주희', channel:'지오', extra:''}
-// "이유빈 플 99만원" → {name:'이유빈', channel:'플러스친구', extra:'99만원'}
+// "이유빈 플 99만원" → {name:'이유빈', channel:'플친', extra:'99만원'}
 export function splitChannelFromName(name, channelMap = DEFAULT_CHANNEL_MAP) {
   const tokens = norm(name).split(' ').filter(Boolean)
   const channelTokens = Object.keys(channelMap)
@@ -457,6 +481,7 @@ export function parseReport(text, config = {}) {
       if (sec) {
         if (sec.section === 'supply') { section = 'supply'; sum.supply_count = sec.count }
         else if (sec.section === 'ticketing') { section = 'ticketing'; sum.ticket_count = sec.count }
+        else if (sec.section === 'recall') { section = 'recall' }
         else if (sec.section === 'visit') { section = null; if (sec.count != null) sum.visit_count = sec.count }
         else if (sec.section === 'chart') { section = null; sum.chart_status = sec.chart }
         else section = null
@@ -481,6 +506,9 @@ export function parseReport(text, config = {}) {
       } else if (section === 'ticketing') {
         const t = parseTicketLine(line)
         if (t && t.customer_name) ticketing.push({ report_date: date, manager: mgr, ...t })
+      } else if (section === 'recall') {
+        // 리콜 명단은 공급(상담)에 섞지 않고 리콜로 분리
+        recall.push({ report_date: date, manager: mgr, customer_name: l })
       }
     }
     summary.push(sum)

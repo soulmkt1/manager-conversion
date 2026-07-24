@@ -21,7 +21,7 @@ export default function Duplicates({ data, onChange }) {
         <div className="dup-group" key={g.key}>
           <div className="dup-title">{g.name} <span className="badge">×{g.rows.length}</span></div>
           <table className="grid center-all">
-            <thead><tr><th>일자</th><th>실장</th><th>채널</th><th>상태</th><th>분류</th><th>삭제</th></tr></thead>
+            <thead><tr><th>일자</th><th>실장</th><th>채널</th><th>상담 내용</th><th>분류</th><th>삭제</th></tr></thead>
             <tbody>
               {g.rows.map((r) => (
                 <tr key={r.id}>

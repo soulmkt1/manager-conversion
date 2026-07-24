@@ -4,14 +4,14 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { statsByManager, statsByDate, statsByChannel, statsByResult } from '../lib/stats.js'
-import { filterData, precedingRange } from '../lib/datefilter.js'
+import { filterData, formatRangeLabel } from '../lib/datefilter.js'
 import DateFilter from '../components/DateFilter.jsx'
 import { exportDashboardPDF } from '../lib/pdf.js'
 
 const COLORS = ['#4f7cff', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#14b8a6', '#eab308']
 
 export default function Dashboard({ data, loading }) {
-  const [filter, setFilter] = useState({ from: '', to: '' })
+  const [filter, setFilter] = useState({ from: '', to: '', cmpFrom: '', cmpTo: '' })
   const [pdfBusy, setPdfBusy] = useState(false)
   const captureRef = useRef(null)
 
@@ -29,17 +29,19 @@ export default function Dashboard({ data, loading }) {
   const totalCancel = mgr.reduce((s, r) => s + r.cancel, 0)
   const overallConv = totalSupply ? ((totalTickets / totalSupply) * 100).toFixed(1) : '0.0'
 
-  // 직전 동일기간 대비 증감 — 기간(범위) 선택 시에만 계산
+  // 비교 기간 대비 증감 — 사용자가 지정한 '기간 비교' 구간이 있을 때만 계산
   const prev = useMemo(() => {
     if (!filter.from && !filter.to) return null
-    const pv = precedingRange(filter)
+    const pv = (filter.cmpFrom && filter.cmpTo)
+      ? { from: filter.cmpFrom, to: filter.cmpTo }
+      : null
     if (!pv) return null
     const pd = filterData(data, pv)
     const pm = statsByManager(pd.leads, pd.ticketing, pd.summary)
     const pSupply = pd.leads.length
     const pTickets = pm.reduce((s, r) => s + r.tickets, 0)
     return {
-      label: '직전 동일기간 대비',
+      label: `${formatRangeLabel(pv)} 대비`,
       supply: pSupply,
       tickets: pTickets,
       visit: pm.reduce((s, r) => s + r.visit, 0),
@@ -60,7 +62,7 @@ export default function Dashboard({ data, loading }) {
     <div className="page-head">
       <h2>대쉬보드</h2>
       <div className="head-controls">
-        <DateFilter dates={allDates} value={filter} onChange={setFilter} />
+        <DateFilter dates={allDates} value={filter} onChange={setFilter} showCompare />
         <button className="btn primary" onClick={downloadPDF} disabled={pdfBusy}>{pdfBusy ? 'PDF 생성 중…' : '⬇ PDF 다운로드'}</button>
       </div>
     </div>
@@ -101,14 +103,14 @@ export default function Dashboard({ data, loading }) {
           </ResponsiveContainer>
         </div>
         <table className="grid tight">
-          <thead><tr><th>실장</th><th>공급</th><th>티켓팅(고객)</th><th>내원</th><th>취소</th><th>전환율</th><th>내원율</th><th>취소율</th></tr></thead>
+          <thead><tr><th>실장</th><th>공급</th><th>티켓팅(고객)</th><th>내원</th><th>내원율</th><th>전환율</th><th>취소</th><th>취소율</th></tr></thead>
           <tbody>
             {mgr.map((r) => (
               <tr key={r.manager}>
                 <td>{r.manager}</td><td>{r.supply}</td><td>{r.tickets}</td><td>{r.visit}</td>
-                <td className="num cancel">{r.cancel}</td>
-                <td className="num strong">{r.convRate.toFixed(1)}%</td>
                 <td className="num">{r.visitRate.toFixed(1)}%</td>
+                <td className="num strong">{r.convRate.toFixed(1)}%</td>
+                <td className="num cancel">{r.cancel}</td>
                 <td className="num cancel">{r.cancelRate.toFixed(1)}%</td>
               </tr>
             ))}

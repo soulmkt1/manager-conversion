@@ -75,7 +75,7 @@ export function precedingRange(filter) {
 
 // 트리거 버튼용 라벨 ('전체 기간' / '7/7 ~ 7/13' / '7/7')
 export function formatRangeLabel(filter) {
-  if (!filter || (!filter.from && !filter.to)) return '전체 기간'
+  if (!filter || (!filter.from && !filter.to)) return '기간 선택'
   const fmt = (md) => { const d = parseMD(md); return d ? `${d.getMonth() + 1}/${d.getDate()}` : md }
   if (filter.from && filter.to) {
     return filter.from === filter.to ? fmt(filter.from) : `${fmt(filter.from)} ~ ${fmt(filter.to)}`

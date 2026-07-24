@@ -6,15 +6,17 @@ import Dashboard from './pages/Dashboard.jsx'
 import Records from './pages/Records.jsx'
 import Duplicates from './pages/Duplicates.jsx'
 import Japan from './pages/Japan.jsx'
+import Recall from './pages/Recall.jsx'
 import Settings from './pages/Settings.jsx'
 
 const TABS = [
-  { id: 'dashboard', label: '📊 대쉬보드' },
-  { id: 'import', label: '➕ 입력' },
-  { id: 'records', label: '📋 목록' },
-  { id: 'duplicates', label: '🔁 중복' },
-  { id: 'japan', label: '🇯🇵 일본상담' },
-  { id: 'settings', label: '⚙️ 관리' },
+  { id: 'dashboard', icon: '📊', label: '대쉬보드' },
+  { id: 'import', icon: '➕', label: '입력' },
+  { id: 'records', icon: '📋', label: '목록 · 수정' },
+  { id: 'duplicates', icon: '🔁', label: '중복' },
+  { id: 'japan', icon: '🇯🇵', label: '일본상담' },
+  { id: 'recall', icon: '📞', label: '리콜' },
+  { id: 'settings', icon: '⚙️', label: '관리' },
 ]
 
 export default function App() {
@@ -74,33 +76,41 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="topbar">
-        <div className="brand">실장별 DB 전환율 대쉬보드</div>
+      <aside className="sidebar">
+        <div className="brand">실장별 DB<br />전환율 대쉬보드</div>
         <nav className="tabs">
           {TABS.map((t) => (
             <button key={t.id} className={tab === t.id ? 'tab active' : 'tab'} onClick={() => setTab(t.id)}>
-              {t.label}
+              <span className="tab-icon">{t.icon}</span>
+              <span className="tab-label">{t.label}</span>
             </button>
           ))}
         </nav>
-        <div className="topbar-right">
-          <button className="btn ghost" onClick={reload} disabled={loading}>
-            {loading ? '새로고침…' : '↻ 새로고침'}
+        <div className="sidebar-foot">
+          <button className="tab" onClick={reload} disabled={loading}>
+            <span className="tab-icon">↻</span>
+            <span className="tab-label">{loading ? '새로고침…' : '새로고침'}</span>
           </button>
-          <button className="btn ghost" onClick={() => signOut()}>로그아웃</button>
+          <button className="tab" onClick={() => signOut()}>
+            <span className="tab-icon">⏻</span>
+            <span className="tab-label">로그아웃</span>
+          </button>
         </div>
-      </header>
+      </aside>
 
-      {error && <div className="banner error">{error}</div>}
+      <div className="main">
+        {error && <div className="banner error">{error}</div>}
 
-      <main className="content">
+        <main className="content">
         {tab === 'dashboard' && <Dashboard data={data} loading={loading} />}
         {tab === 'import' && <Import onSaved={reload} />}
         {tab === 'records' && <Records data={data} onChange={reload} />}
         {tab === 'duplicates' && <Duplicates data={data} onChange={reload} />}
         {tab === 'japan' && <Japan data={data} onChange={reload} />}
-        {tab === 'settings' && <Settings data={data} onChange={reload} />}
-      </main>
+        {tab === 'recall' && <Recall data={data} onChange={reload} />}
+          {tab === 'settings' && <Settings data={data} onChange={reload} />}
+        </main>
+      </div>
     </div>
   )
 }

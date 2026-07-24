@@ -159,7 +159,7 @@ export default function Import({ onSaved }) {
           {/* 공급 */}
           <Section title={`공급 (${parsed.supply.length})`} defaultOpen>
             <table className="grid">
-              <thead><tr><th>일자</th><th>실장</th><th>채널</th><th>고객명</th><th>상태(원문)</th><th>결과분류</th><th>중복</th><th></th></tr></thead>
+              <thead><tr><th>일자</th><th>실장</th><th>채널</th><th>고객명</th><th>상담 내용(원문)</th><th>결과분류</th><th>중복</th><th></th></tr></thead>
               <tbody>
                 {parsed.supply.map((r, i) => (
                   <tr key={i} className={r.is_duplicate ? 'dup' : ''}>

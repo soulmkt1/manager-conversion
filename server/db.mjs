@@ -70,7 +70,7 @@ export function setSetting(key, value) {
 const valid = (t) => Object.prototype.hasOwnProperty.call(TABLES, t)
 
 // 소프트 삭제(휴지통) 지원 테이블: 삭제 시 실제로 지우지 않고 deleted=1 표시
-const SOFT = new Set(['leads', 'ticketing', 'japan'])
+const SOFT = new Set(['leads', 'ticketing', 'japan', 'recall'])
 function ensureColumn(table, col, def) {
   const cols = db.prepare(`pragma table_info(${table})`).all().map((c) => c.name)
   if (!cols.includes(col)) db.exec(`alter table ${table} add column ${col} ${def}`)

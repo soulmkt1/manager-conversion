@@ -109,7 +109,7 @@ export default function Settings({ data, onChange }) {
           </div>
 
           <div className="card">
-            <h3>결과분류 규칙 <span className="muted">— 상태 문구에 이 단어가 들어가면 해당 분류 (위에서부터 우선)</span></h3>
+            <h3>결과분류 규칙 <span className="muted">— 상담 내용에 이 단어가 들어가면 해당 분류 (위에서부터 우선)</span></h3>
             {rules.map((rule, ci) => (
               <div className="rule-block" key={rule.category}>
                 <div className="rule-cat">{rule.category}</div>
@@ -136,14 +136,15 @@ function TrashPanel({ onChange }) {
   const [leads, setLeads] = useState([])
   const [tickets, setTickets] = useState([])
   const [japan, setJapan] = useState([])
+  const [recall, setRecall] = useState([])
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
   async function load() {
     setBusy(true)
     try {
-      const [l, t, j] = await Promise.all([fetchTrash('leads'), fetchTrash('ticketing'), fetchTrash('japan')])
-      setLeads(l); setTickets(t); setJapan(j)
+      const [l, t, j, rc] = await Promise.all([fetchTrash('leads'), fetchTrash('ticketing'), fetchTrash('japan'), fetchTrash('recall')])
+      setLeads(l); setTickets(t); setJapan(j); setRecall(rc)
     } catch (e) { setMsg('불러오기 실패: ' + e.message) }
     finally { setBusy(false) }
   }
@@ -158,7 +159,7 @@ function TrashPanel({ onChange }) {
     } catch (e) { setMsg('복원 실패: ' + e.message) }
   }
 
-  const empty = leads.length === 0 && tickets.length === 0 && japan.length === 0
+  const empty = leads.length === 0 && tickets.length === 0 && japan.length === 0 && recall.length === 0
 
   return (
     <div>
@@ -172,7 +173,7 @@ function TrashPanel({ onChange }) {
           <h3>삭제된 공급 <span className="muted">({leads.length})</span></h3>
           <div className="scroll-x">
             <table className="grid center-all">
-              <thead><tr><th>일자</th><th>실장</th><th>채널</th><th>고객명</th><th>상태</th><th>분류</th><th>복원</th></tr></thead>
+              <thead><tr><th>일자</th><th>실장</th><th>채널</th><th>고객명</th><th>상담 내용</th><th>분류</th><th>복원</th></tr></thead>
               <tbody>
                 {leads.map((r) => (
                   <tr key={r.id}>
@@ -219,6 +220,25 @@ function TrashPanel({ onChange }) {
                     <td>{r.report_date}</td><td>{r.manager}</td><td>{r.patient}</td><td>{r.surgeon}</td>
                     <td>{r.surgery_date}</td><td>{r.deposit}</td><td>{r.cost_parts}</td>
                     <td><button className="btn success sm" onClick={() => restore('japan', r.id)}>복원</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {recall.length > 0 && (
+        <div className="card">
+          <h3>삭제된 리콜 <span className="muted">({recall.length})</span></h3>
+          <div className="scroll-x">
+            <table className="grid center-all">
+              <thead><tr><th>일자</th><th>실장</th><th>고객명</th><th>복원</th></tr></thead>
+              <tbody>
+                {recall.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.report_date}</td><td>{r.manager}</td><td>{r.customer_name}</td>
+                    <td><button className="btn success sm" onClick={() => restore('recall', r.id)}>복원</button></td>
                   </tr>
                 ))}
               </tbody>

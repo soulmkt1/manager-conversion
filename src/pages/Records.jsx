@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { updateRow, moveRow, deleteMany } from '../lib/supabase.js'
 import { toCSV, downloadCSV } from '../lib/stats.js'
 import { matchDate } from '../lib/datefilter.js'
 import DateFilter from '../components/DateFilter.jsx'
+
+const PAGE_SIZE = 100 // 한 번에 그리는 행 수 (많은 행을 한꺼번에 그리면 느려짐)
 
 const VIEWS = {
   leads: {
@@ -13,7 +15,7 @@ const VIEWS = {
       { key: 'manager', label: '실장', w: 76 },
       { key: 'channel', label: '채널', w: 90 },
       { key: 'customer_name', label: '고객명', w: 120 },
-      { key: 'status_raw', label: '상태', w: 220 },
+      { key: 'status_raw', label: '상담 내용', w: 220 },
       { key: 'result_category', label: '분류', w: 90 },
     ],
     filters: [
@@ -43,6 +45,41 @@ const VIEWS = {
   },
 }
 
+// 셀: 타이핑 중에는 자기 상태만 바꾸고, 입력을 멈춘 뒤(0.6초)나 포커스가 빠질 때만 상위로 알린다.
+// → 글자 하나 칠 때마다 표 전체가 다시 그려지는 문제를 없앰.
+const Cell = memo(function Cell({ rowId, col, value, onCommit }) {
+  const [draft, setDraft] = useState(value ?? '')
+  const timer = useRef(null)
+  useEffect(() => { setDraft(value ?? '') }, [value]) // 서버 새로고침 등 외부 변경 반영
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  function change(v) {
+    setDraft(v)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => onCommit(rowId, col.key, v), 600)
+  }
+  function blur() {
+    clearTimeout(timer.current)
+    onCommit(rowId, col.key, draft)
+  }
+  return (
+    <input className="cell-in" style={{ width: col.w }} value={draft}
+      onChange={(e) => change(e.target.value)} onBlur={blur} />
+  )
+})
+
+// 행: 값이 바뀌지 않은 행은 다시 그리지 않음
+const Row = memo(function Row({ row, columns, checked, onToggle, onCommit }) {
+  return (
+    <tr className={(row.is_duplicate ? 'dup ' : '') + (checked ? 'sel' : '')}>
+      <td className="chk-col"><input type="checkbox" checked={checked} onChange={() => onToggle(row.id)} /></td>
+      {columns.map((c) => (
+        <td key={c.key}><Cell rowId={row.id} col={c} value={row[c.key]} onCommit={onCommit} /></td>
+      ))}
+    </tr>
+  )
+})
+
 export default function Records({ data, onChange }) {
   const [view, setView] = useState('leads')
   const [rows, setRows] = useState([])
@@ -50,11 +87,15 @@ export default function Records({ data, onChange }) {
   const [colFilters, setColFilters] = useState({}) // 컬럼별 필터: { channel/result_category/area/surgeon → 값 }
   const [q, setQ] = useState('')
   const [dateFilter, setDateFilter] = useState({ from: '', to: '' })
+  const [page, setPage] = useState(1)
 
   const cfg = VIEWS[view]
   const [selected, setSelected] = useState(() => new Set())
   useEffect(() => { setRows(data[view] || []) }, [data, view])
   useEffect(() => { setSelected(new Set()); setColFilters({}) }, [view]) // 탭 전환 시 선택·컬럼필터 초기화
+
+  const rowsRef = useRef(rows)
+  useEffect(() => { rowsRef.current = rows }, [rows])
 
   const managers = useMemo(() => [...new Set((data[view] || []).map((r) => r.manager).filter(Boolean))].sort(), [data, view])
   const filterOptions = useMemo(() => {
@@ -83,26 +124,30 @@ export default function Records({ data, onChange }) {
     })
   }, [rows, mgrFilter, colFilters, q, cfg, dateFilter])
 
-  const timers = useRef({})
+  // 필터가 바뀌면 1페이지로
+  useEffect(() => { setPage(1) }, [view, mgrFilter, colFilters, q, dateFilter])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const curPage = Math.min(page, totalPages)
+  const pageRows = useMemo(
+    () => filtered.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE),
+    [filtered, curPage],
+  )
+
   const [saveState, setSaveState] = useState('') // '' | 'saving' | 'saved'
 
-  function editLocal(id, key, value) {
+  // 셀 값 확정 → 로컬 반영 + 서버 저장 (값이 그대로면 저장하지 않음)
+  const commit = useCallback(async (id, key, value) => {
+    const cur = rowsRef.current.find((r) => r.id === id)
+    if (cur && (cur[key] ?? '') === value) return
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [key]: value } : r)))
-    // 입력을 멈춘 뒤 0.6초 후 자동 저장 (타이핑 중 매번 저장 방지)
-    const k = id + ':' + key
-    clearTimeout(timers.current[k])
-    timers.current[k] = setTimeout(() => persist(id, key, value), 600)
-  }
-  async function persist(id, key, value) {
-    const k = id + ':' + key
-    clearTimeout(timers.current[k]); delete timers.current[k]
     setSaveState('saving')
     try {
       await updateRow(cfg.table, id, { [key]: value === '' ? null : value })
       setSaveState('saved')
       setTimeout(() => setSaveState((s) => (s === 'saved' ? '' : s)), 1500)
     } catch (e) { setSaveState(''); alert('수정 저장 실패: ' + e.message) }
-  }
+  }, [cfg.table])
+
   const moveTarget = view === 'leads' ? 'ticketing' : 'leads'
   const moveLabel = view === 'leads' ? '→ 티켓팅' : '→ 공급'
 
@@ -117,9 +162,9 @@ export default function Records({ data, onChange }) {
       return next
     })
   }
-  function toggleOne(id) {
+  const toggleOne = useCallback((id) => {
     setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  }
+  }, [])
   async function bulkMove() {
     if (!selectedIds.length) return
     if (!confirm(`선택한 ${selectedIds.length}개를 ${view === 'leads' ? '티켓팅' : '공급'}으로 이동할까요?`)) return
@@ -174,31 +219,28 @@ export default function Records({ data, onChange }) {
         <table className="grid center-head">
           <thead>
             <tr>
-              <th className="chk-col"><input type="checkbox" checked={allChecked} onChange={toggleAll} title="전체 선택" /></th>
+              <th className="chk-col"><input type="checkbox" checked={allChecked} onChange={toggleAll} title="전체 선택(필터된 전체)" /></th>
               {cfg.columns.map((c) => <th key={c.key} style={{ minWidth: c.w }}>{c.label}</th>)}
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id} className={(r.is_duplicate ? 'dup ' : '') + (selected.has(r.id) ? 'sel' : '')}>
-                <td className="chk-col"><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleOne(r.id)} /></td>
-                {cfg.columns.map((c) => (
-                  <td key={c.key}>
-                    <input
-                      className="cell-in"
-                      style={{ width: c.w }}
-                      value={r[c.key] ?? ''}
-                      onChange={(e) => editLocal(r.id, c.key, e.target.value)}
-                      onBlur={(e) => persist(r.id, c.key, e.target.value === '' ? null : e.target.value)}
-                    />
-                  </td>
-                ))}
-              </tr>
+            {pageRows.map((r) => (
+              <Row key={r.id} row={r} columns={cfg.columns} checked={selected.has(r.id)} onToggle={toggleOne} onCommit={commit} />
             ))}
             {filtered.length === 0 && <tr><td colSpan={cfg.columns.length + 1} className="muted center">데이터 없음</td></tr>}
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="pager">
+          <button className="btn ghost sm" disabled={curPage <= 1} onClick={() => setPage(1)}>« 처음</button>
+          <button className="btn ghost sm" disabled={curPage <= 1} onClick={() => setPage(curPage - 1)}>‹ 이전</button>
+          <span className="muted">{curPage} / {totalPages} 페이지 <span className="pager-range">({(curPage - 1) * PAGE_SIZE + 1}–{Math.min(curPage * PAGE_SIZE, filtered.length)}행)</span></span>
+          <button className="btn ghost sm" disabled={curPage >= totalPages} onClick={() => setPage(curPage + 1)}>다음 ›</button>
+          <button className="btn ghost sm" disabled={curPage >= totalPages} onClick={() => setPage(totalPages)}>마지막 »</button>
+        </div>
+      )}
     </div>
   )
 }
