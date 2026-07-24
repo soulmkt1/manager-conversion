@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { parseMD, presetRange, precedingRange, formatRangeLabel } from '../lib/datefilter.js'
 
 // value: { from, to, cmpFrom, cmpTo }  — cmpFrom/cmpTo 는 '기간 비교'용(대쉬보드에서만 사용)
@@ -25,6 +25,7 @@ export default function DateFilter({ dates, value, onChange, showCompare = false
   const [active, setActive] = useState('main') // 달력 클릭이 적용될 대상: 'main' | 'cmp'
   const [view, setView] = useState(() => new Date(YEAR, new Date().getMonth(), 1))
   const rootRef = useRef(null)
+  const popRef = useRef(null)
 
   const dataDays = useMemo(() => new Set((dates || []).map((md) => (md || '').trim()).filter(Boolean)), [dates])
 
@@ -46,6 +47,30 @@ export default function DateFilter({ dates, value, onChange, showCompare = false
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
+
+  // 팝오버가 화면 밖으로 나가지 않도록 위치 보정
+  // (기간 선택 버튼이 화면 오른쪽에 있으면 팝오버가 오른쪽으로 넘쳐 '확인' 버튼이 안 보였음)
+  useLayoutEffect(() => {
+    if (!open) return
+    function fit() {
+      const el = popRef.current
+      if (!el) return
+      const MARGIN = 12
+      // 가로 스크롤이 있을 수 있어 window.innerWidth 대신 '실제로 보이는 너비'를 쓴다
+      const visibleWidth = document.documentElement.clientWidth
+      el.style.left = '0px'
+      el.style.maxWidth = `${Math.max(280, visibleWidth - MARGIN * 2)}px` // 화면보다 넓어지지 않게
+      const r = el.getBoundingClientRect()
+      let shift = 0
+      const overRight = r.right - (visibleWidth - MARGIN)
+      if (overRight > 0) shift = -overRight            // 오른쪽으로 넘치면 왼쪽으로 당김
+      if (r.left + shift < MARGIN) shift = MARGIN - r.left // 그래도 왼쪽으로 넘치면 다시 밀어냄
+      el.style.left = `${shift}px`
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [open, showCompare, cmpOn])
 
   // 비교 ON + 자동모드면 주 기간의 '직전 동일기간'을 비교기간으로 채움
   useEffect(() => {
@@ -130,7 +155,7 @@ export default function DateFilter({ dates, value, onChange, showCompare = false
       </button>
 
       {open && (
-        <div className={'df-pop' + (showCompare ? ' with-compare' : '')}>
+        <div className={'df-pop' + (showCompare ? ' with-compare' : '')} ref={popRef}>
           <div className="df-body">
             <div className="df-presets">
               {PRESETS.map(([id, label]) => (

@@ -125,12 +125,12 @@ tr.sel { background: #eef4ff; }
 .df-trigger:hover { background: #f6f8fc; }
 .df-label { font-weight: 600; }
 .df-caret { color: #999; font-size: 11px; }
-.df-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 200; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.16); width: 560px; max-width: 94vw; }
+.df-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 200; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.16); width: 560px; }
 .df-body { display: flex; }
-.df-presets { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; border-right: 1px solid var(--line); min-width: 160px; }
+.df-presets { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; border-right: 1px solid var(--line); flex: 0 0 160px; min-width: 0; }
 .df-preset { text-align: left; border: none; background: transparent; padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: 13px; color: #333; white-space: nowrap; }
 .df-preset:hover { background: #eef4ff; color: var(--primary); }
-.df-right { flex: 1; min-width: 0; padding: 12px; }
+.df-right { flex: 1 1 auto; min-width: 0; padding: 12px; }
 
 /* 기간 입력칸 (주 기간 / 비교 기간) */
 .df-ranges { margin-bottom: 10px; }
