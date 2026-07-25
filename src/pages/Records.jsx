@@ -11,7 +11,20 @@ function sortByChannelOrder(values) {
 }
 import DateFilter from '../components/DateFilter.jsx'
 
-const PAGE_SIZE = 100 // 한 번에 그리는 행 수 (많은 행을 한꺼번에 그리면 느려짐)
+const PAGE_SIZES = [10, 30, 50, 100, 200] // 페이지당 행 수 선택지
+
+// 숫자 페이지 버튼 목록: 적으면 전부, 많으면 1 … (현재 주변) … 마지막 형태
+function getPageItems(cur, total, span = 5) {
+  if (total <= span + 2) return Array.from({ length: total }, (_, i) => i + 1)
+  let start = Math.max(1, cur - Math.floor(span / 2))
+  let end = start + span - 1
+  if (end > total) { end = total; start = end - span + 1 }
+  const items = []
+  if (start > 1) { items.push(1); if (start > 2) items.push('…') }
+  for (let p = start; p <= end; p++) items.push(p)
+  if (end < total) { if (end < total - 1) items.push('…'); items.push(total) }
+  return items
+}
 
 const VIEWS = {
   leads: {
@@ -117,6 +130,11 @@ export default function Records({ data, onChange }) {
   const [q, setQ] = useState('')
   const [dateFilter, setDateFilter] = useState({ from: '', to: '' })
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(() => {
+    const saved = Number(localStorage.getItem('records_page_size'))
+    return PAGE_SIZES.includes(saved) ? saved : 100
+  })
+  function changePageSize(n) { setPageSize(n); setPage(1); localStorage.setItem('records_page_size', String(n)) }
 
   const cfg = VIEWS[view]
   const [selected, setSelected] = useState(() => new Set())
@@ -183,11 +201,11 @@ export default function Records({ data, onChange }) {
 
   // 필터가 바뀌면 1페이지로
   useEffect(() => { setPage(1) }, [view, mgrFilter, colFilters, q, dateFilter])
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const curPage = Math.min(page, totalPages)
   const pageRows = useMemo(
-    () => filtered.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE),
-    [filtered, curPage],
+    () => filtered.slice((curPage - 1) * pageSize, curPage * pageSize),
+    [filtered, curPage, pageSize],
   )
 
   const [saveState, setSaveState] = useState('') // '' | 'saving' | 'saved'
@@ -290,15 +308,29 @@ export default function Records({ data, onChange }) {
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="pager">
-          <button className="btn ghost sm" disabled={curPage <= 1} onClick={() => setPage(1)}>« 처음</button>
-          <button className="btn ghost sm" disabled={curPage <= 1} onClick={() => setPage(curPage - 1)}>‹ 이전</button>
-          <span className="muted">{curPage} / {totalPages} 페이지 <span className="pager-range">({(curPage - 1) * PAGE_SIZE + 1}–{Math.min(curPage * PAGE_SIZE, filtered.length)}행)</span></span>
-          <button className="btn ghost sm" disabled={curPage >= totalPages} onClick={() => setPage(curPage + 1)}>다음 ›</button>
-          <button className="btn ghost sm" disabled={curPage >= totalPages} onClick={() => setPage(totalPages)}>마지막 »</button>
-        </div>
-      )}
+      <div className="pager">
+        <span className="muted pager-range">
+          총 {filtered.length}행{filtered.length > 0 && <> · {(curPage - 1) * pageSize + 1}–{Math.min(curPage * pageSize, filtered.length)}행</>}
+        </span>
+
+        {totalPages > 1 && (
+          <div className="pager-nav">
+            <button className="pager-arrow" disabled={curPage <= 1} onClick={() => setPage(curPage - 1)}>‹</button>
+            {getPageItems(curPage, totalPages).map((it, i) => (
+              it === '…'
+                ? <span key={'e' + i} className="pager-ellipsis">…</span>
+                : <button key={it} className={'pager-num' + (it === curPage ? ' active' : '')} onClick={() => setPage(it)}>{it}</button>
+            ))}
+            <button className="pager-arrow" disabled={curPage >= totalPages} onClick={() => setPage(curPage + 1)}>›</button>
+          </div>
+        )}
+
+        <label className="pager-size">
+          <select value={pageSize} onChange={(e) => changePageSize(Number(e.target.value))}>
+            {PAGE_SIZES.map((n) => <option key={n} value={n}>{n} / 페이지</option>)}
+          </select>
+        </label>
+      </div>
     </div>
   )
 }

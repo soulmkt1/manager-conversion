@@ -83,8 +83,17 @@ code { background: #eef1f7; padding: 1px 5px; border-radius: 4px; }
 .btn:disabled { opacity: .5; cursor: default; }
 
 /* 페이지 이동 */
-.pager { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; position: relative; }
 .pager-range { font-size: 12px; opacity: .8; }
+.pager-nav { display: inline-flex; align-items: center; gap: 4px; }
+.pager-num { min-width: 30px; height: 30px; padding: 0 6px; border: 1px solid var(--line); background: #fff; border-radius: 7px; cursor: pointer; font-size: 13px; color: #333; }
+.pager-num:hover { background: #f0f3fa; }
+.pager-num.active { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 700; }
+.pager-arrow { min-width: 30px; height: 30px; border: 1px solid var(--line); background: #fff; border-radius: 7px; cursor: pointer; font-size: 15px; line-height: 1; color: #333; }
+.pager-arrow:hover:not(:disabled) { background: #f0f3fa; }
+.pager-arrow:disabled { opacity: .4; cursor: default; }
+.pager-ellipsis { padding: 0 4px; color: var(--muted); }
+.pager-size select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; background: #fff; cursor: pointer; }
 
 /* 선택 체크박스 열 */
 .chk-col { width: 34px; text-align: center; padding-left: 6px; padding-right: 6px; }
