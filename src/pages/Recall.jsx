@@ -3,6 +3,7 @@ import { updateRow, deleteMany } from '../lib/supabase.js'
 import { toCSV, downloadCSV } from '../lib/stats.js'
 import { matchDate } from '../lib/datefilter.js'
 import DateFilter from '../components/DateFilter.jsx'
+import Pager, { usePagination } from '../components/Pager.jsx'
 
 const COLUMNS = [
   { key: 'report_date', label: '일자', w: 64 },
@@ -33,6 +34,9 @@ export default function Recall({ data, onChange }) {
       const d = String(b.report_date || '').localeCompare(String(a.report_date || ''))
       return d !== 0 ? d : (b.id - a.id)
     }), [rows, mgrFilter, q, dateFilter])
+
+  const pg = usePagination(filtered.length, 'recall_page_size', `${mgrFilter}|${q}|${dateFilter.from}|${dateFilter.to}`)
+  const pageRows = pg.slice(filtered)
 
   const timers = useRef({})
   const [saveState, setSaveState] = useState('')
@@ -99,7 +103,7 @@ export default function Recall({ data, onChange }) {
             {COLUMNS.map((c) => <th key={c.key} style={{ minWidth: c.w }}>{c.label}</th>)}
           </tr></thead>
           <tbody>
-            {filtered.map((r) => (
+            {pageRows.map((r) => (
               <tr key={r.id} className={selected.has(r.id) ? 'sel' : ''}>
                 <td className="chk-col"><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleOne(r.id)} /></td>
                 {COLUMNS.map((c) => (
@@ -115,6 +119,8 @@ export default function Recall({ data, onChange }) {
           </tbody>
         </table>
       </div>
+      <Pager total={filtered.length} page={pg.page} totalPages={pg.totalPages}
+        pageSize={pg.pageSize} setPage={pg.setPage} setPageSize={pg.setPageSize} unit="건" />
     </div>
   )
 }

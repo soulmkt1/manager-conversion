@@ -10,21 +10,7 @@ function sortByChannelOrder(values) {
   return [...values].sort((a, b) => idx(a) - idx(b) || String(a).localeCompare(String(b)))
 }
 import DateFilter from '../components/DateFilter.jsx'
-
-const PAGE_SIZES = [10, 30, 50, 100, 200] // 페이지당 행 수 선택지
-
-// 숫자 페이지 버튼 목록: 적으면 전부, 많으면 1 … (현재 주변) … 마지막 형태
-function getPageItems(cur, total, span = 5) {
-  if (total <= span + 2) return Array.from({ length: total }, (_, i) => i + 1)
-  let start = Math.max(1, cur - Math.floor(span / 2))
-  let end = start + span - 1
-  if (end > total) { end = total; start = end - span + 1 }
-  const items = []
-  if (start > 1) { items.push(1); if (start > 2) items.push('…') }
-  for (let p = start; p <= end; p++) items.push(p)
-  if (end < total) { if (end < total - 1) items.push('…'); items.push(total) }
-  return items
-}
+import Pager, { PAGE_SIZES } from '../components/Pager.jsx'
 
 const VIEWS = {
   leads: {
@@ -308,29 +294,8 @@ export default function Records({ data, onChange }) {
         </table>
       </div>
 
-      <div className="pager">
-        <span className="muted pager-range">
-          총 {filtered.length}행{filtered.length > 0 && <> · {(curPage - 1) * pageSize + 1}–{Math.min(curPage * pageSize, filtered.length)}행</>}
-        </span>
-
-        {totalPages > 1 && (
-          <div className="pager-nav">
-            <button className="pager-arrow" disabled={curPage <= 1} onClick={() => setPage(curPage - 1)}>‹</button>
-            {getPageItems(curPage, totalPages).map((it, i) => (
-              it === '…'
-                ? <span key={'e' + i} className="pager-ellipsis">…</span>
-                : <button key={it} className={'pager-num' + (it === curPage ? ' active' : '')} onClick={() => setPage(it)}>{it}</button>
-            ))}
-            <button className="pager-arrow" disabled={curPage >= totalPages} onClick={() => setPage(curPage + 1)}>›</button>
-          </div>
-        )}
-
-        <label className="pager-size">
-          <select value={pageSize} onChange={(e) => changePageSize(Number(e.target.value))}>
-            {PAGE_SIZES.map((n) => <option key={n} value={n}>{n} / 페이지</option>)}
-          </select>
-        </label>
-      </div>
+      <Pager total={filtered.length} page={curPage} totalPages={totalPages}
+        pageSize={pageSize} setPage={setPage} setPageSize={changePageSize} unit="행" />
     </div>
   )
 }
