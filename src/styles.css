@@ -194,6 +194,8 @@ tr.sel { background: #eef4ff; }
 
 .cell-in { border: 1px solid transparent; background: transparent; padding: 3px 5px; border-radius: 5px; font-size: 13px; font-family: inherit; }
 .cell-in:hover { border-color: var(--line); }
+.cell-sel { cursor: pointer; -webkit-appearance: menulist; appearance: menulist; }
+.cell-sel:hover { background: #f6f8fc; }
 .cell-in:focus { border-color: var(--primary); background: #fff; outline: none; }
 select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; font-family: inherit; background: #fff; }
 .del-btn { border: none; background: #fbe9e9; color: var(--danger); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 12px; }

@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { updateRow, moveRow, deleteMany } from '../lib/supabase.js'
 import { toCSV, downloadCSV } from '../lib/stats.js'
 import { matchDate } from '../lib/datefilter.js'
-import { normalizeName } from '../lib/parser.js'
+import { normalizeName, DEFAULT_CHANNEL_MAP, DEFAULT_RESULT_RULES } from '../lib/parser.js'
 import DateFilter from '../components/DateFilter.jsx'
 
 const PAGE_SIZE = 100 // 한 번에 그리는 행 수 (많은 행을 한꺼번에 그리면 느려짐)
@@ -23,6 +23,7 @@ const VIEWS = {
       { key: 'channel', label: '채널' },
       { key: 'result_category', label: '분류' },
     ],
+    selects: new Set(['manager', 'channel', 'result_category']), // 드롭다운으로 편집할 컬럼
   },
   ticketing: {
     label: '티켓팅',
@@ -43,25 +44,46 @@ const VIEWS = {
       { key: 'area', label: '부위' },
       { key: 'surgeon', label: '집도의' },
     ],
+    selects: new Set(['manager']), // 티켓팅은 실장만 드롭다운
   },
 }
 
 // 셀: 타이핑 중에는 자기 상태만 바꾸고, 입력을 멈춘 뒤(0.6초)나 포커스가 빠질 때만 상위로 알린다.
 // → 글자 하나 칠 때마다 표 전체가 다시 그려지는 문제를 없앰.
-const Cell = memo(function Cell({ rowId, col, value, onCommit }) {
+// options 가 있으면 드롭다운(선택 즉시 저장), 없으면 텍스트 입력(디바운스 저장).
+const Cell = memo(function Cell({ rowId, col, value, options, onCommit }) {
   const [draft, setDraft] = useState(value ?? '')
   const timer = useRef(null)
-  useEffect(() => { setDraft(value ?? '') }, [value]) // 서버 새로고침 등 외부 변경 반영
-  useEffect(() => () => clearTimeout(timer.current), [])
+  const pending = useRef(null)      // 저장 대기 중인 값 (없으면 null)
+  const commitRef = useRef(onCommit)
+  commitRef.current = onCommit
+  useEffect(() => { setDraft(value ?? ''); pending.current = null }, [value]) // 외부 변경 반영
+  useEffect(() => () => {
+    // 언마운트 시 대기 중인 저장이 있으면 마저 저장(디바운스 유실 방지)
+    clearTimeout(timer.current)
+    if (pending.current != null) commitRef.current(rowId, col.key, pending.current)
+  }, [rowId, col.key])
+
+  if (options) {
+    // 드롭다운: 선택 즉시 저장
+    const list = options.includes(value) || !value ? options : [value, ...options]
+    return (
+      <select className="cell-in cell-sel" style={{ width: col.w }} value={value ?? ''}
+        onChange={(e) => onCommit(rowId, col.key, e.target.value)}>
+        <option value="">(비움)</option>
+        {list.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    )
+  }
 
   function change(v) {
-    setDraft(v)
+    setDraft(v); pending.current = v
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => onCommit(rowId, col.key, v), 600)
+    timer.current = setTimeout(() => { pending.current = null; onCommit(rowId, col.key, v) }, 600)
   }
   function blur() {
     clearTimeout(timer.current)
-    onCommit(rowId, col.key, draft)
+    if (pending.current != null) { pending.current = null; onCommit(rowId, col.key, draft) }
   }
   return (
     <input className="cell-in" style={{ width: col.w }} value={draft}
@@ -70,12 +92,12 @@ const Cell = memo(function Cell({ rowId, col, value, onCommit }) {
 })
 
 // 행: 값이 바뀌지 않은 행은 다시 그리지 않음
-const Row = memo(function Row({ row, columns, checked, isDup, onToggle, onCommit }) {
+const Row = memo(function Row({ row, columns, optionsByKey, checked, isDup, onToggle, onCommit }) {
   return (
     <tr className={(isDup ? 'dup ' : '') + (checked ? 'sel' : '')}>
       <td className="chk-col"><input type="checkbox" checked={checked} onChange={() => onToggle(row.id)} /></td>
       {columns.map((c) => (
-        <td key={c.key}><Cell rowId={row.id} col={c} value={row[c.key]} onCommit={onCommit} /></td>
+        <td key={c.key}><Cell rowId={row.id} col={c} value={row[c.key]} options={optionsByKey[c.key]} onCommit={onCommit} /></td>
       ))}
     </tr>
   )
@@ -105,6 +127,18 @@ export default function Records({ data, onChange }) {
     return m
   }, [data, view, cfg])
   const allDates = useMemo(() => (data[view] || []).map((r) => r.report_date), [data, view])
+
+  // 드롭다운 편집용 선택지 (실장/채널/분류). 표준값 + 실제 데이터에 있는 값을 합쳐 누락 방지.
+  const optionsByKey = useMemo(() => {
+    const distinct = (arr, key) => [...new Set((arr || []).map((r) => r[key]).filter(Boolean))]
+    const managers = [...new Set([...distinct(data.leads, 'manager'), ...distinct(data.ticketing, 'manager')])].sort()
+    const channels = [...new Set([...Object.values(DEFAULT_CHANNEL_MAP), ...distinct(data.leads, 'channel')])].sort()
+    const categories = [...new Set([...DEFAULT_RESULT_RULES.map((r) => r.category), '기타', ...distinct(data.leads, 'result_category')])]
+    const all = { manager: managers, channel: channels, result_category: categories }
+    const m = {}
+    for (const key of cfg.selects || []) m[key] = all[key]
+    return m
+  }, [data, cfg])
 
   // 중복 표시(빨간 배경)는 저장된 is_duplicate 값이 아니라 '지금 남아있는 데이터'로 계산한다.
   // → 2건 중 1건을 지우면 남은 1건의 색이 바로 원래대로 돌아온다.
@@ -239,7 +273,7 @@ export default function Records({ data, onChange }) {
           </thead>
           <tbody>
             {pageRows.map((r) => (
-              <Row key={r.id} row={r} columns={cfg.columns} checked={selected.has(r.id)}
+              <Row key={r.id} row={r} columns={cfg.columns} optionsByKey={optionsByKey} checked={selected.has(r.id)}
                 isDup={dupKeys.has(normalizeName(r.customer_name))} onToggle={toggleOne} onCommit={commit} />
             ))}
             {filtered.length === 0 && <tr><td colSpan={cfg.columns.length + 1} className="muted center">데이터 없음</td></tr>}
