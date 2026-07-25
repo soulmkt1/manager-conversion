@@ -2,7 +2,13 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { updateRow, moveRow, deleteMany } from '../lib/supabase.js'
 import { toCSV, downloadCSV } from '../lib/stats.js'
 import { matchDate } from '../lib/datefilter.js'
-import { normalizeName, DEFAULT_CHANNEL_MAP, DEFAULT_RESULT_RULES } from '../lib/parser.js'
+import { normalizeName, DEFAULT_RESULT_RULES, CHANNEL_ORDER } from '../lib/parser.js'
+
+// 채널 값들을 지정 순서(CHANNEL_ORDER)대로 정렬. 목록에 없는 값은 뒤에 가나다순.
+function sortByChannelOrder(values) {
+  const idx = (v) => { const i = CHANNEL_ORDER.indexOf(v); return i === -1 ? CHANNEL_ORDER.length : i }
+  return [...values].sort((a, b) => idx(a) - idx(b) || String(a).localeCompare(String(b)))
+}
 import DateFilter from '../components/DateFilter.jsx'
 
 const PAGE_SIZE = 100 // 한 번에 그리는 행 수 (많은 행을 한꺼번에 그리면 느려짐)
@@ -123,7 +129,10 @@ export default function Records({ data, onChange }) {
   const managers = useMemo(() => [...new Set((data[view] || []).map((r) => r.manager).filter(Boolean))].sort(), [data, view])
   const filterOptions = useMemo(() => {
     const m = {}
-    for (const f of cfg.filters) m[f.key] = [...new Set((data[view] || []).map((r) => r[f.key]).filter(Boolean))].sort()
+    for (const f of cfg.filters) {
+      const vals = [...new Set((data[view] || []).map((r) => r[f.key]).filter(Boolean))]
+      m[f.key] = f.key === 'channel' ? sortByChannelOrder(vals) : vals.sort()
+    }
     return m
   }, [data, view, cfg])
   const allDates = useMemo(() => (data[view] || []).map((r) => r.report_date), [data, view])
@@ -132,7 +141,7 @@ export default function Records({ data, onChange }) {
   const optionsByKey = useMemo(() => {
     const distinct = (arr, key) => [...new Set((arr || []).map((r) => r[key]).filter(Boolean))]
     const managers = [...new Set([...distinct(data.leads, 'manager'), ...distinct(data.ticketing, 'manager')])].sort()
-    const channels = [...new Set([...Object.values(DEFAULT_CHANNEL_MAP), ...distinct(data.leads, 'channel')])].sort()
+    const channels = CHANNEL_ORDER // 채널 편집 드롭다운은 지정 순서 그대로
     const categories = [...new Set([...DEFAULT_RESULT_RULES.map((r) => r.category), '기타', ...distinct(data.leads, 'result_category')])]
     const all = { manager: managers, channel: channels, result_category: categories }
     const m = {}
