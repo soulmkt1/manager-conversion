@@ -29,6 +29,15 @@ export default function Dashboard({ data, loading }) {
   const totalCancel = mgr.reduce((s, r) => s + r.cancel, 0)
   const overallConv = totalSupply ? ((totalTickets / totalSupply) * 100).toFixed(1) : '0.0'
 
+  // 표 합계 행 — 비율은 단순 평균이 아니라 '총합 기준 실제 비율'로 계산한다.
+  const pct = (part, whole) => (whole ? (part / whole) * 100 : 0)
+  const chTotal = useMemo(() => {
+    const t = byChannel.reduce((a, r) => ({
+      supply: a.supply + r.supply, booked: a.booked + r.booked, cancel: a.cancel + r.cancel,
+    }), { supply: 0, booked: 0, cancel: 0 })
+    return { ...t, rate: pct(t.booked, t.supply), cancelRate: pct(t.cancel, t.supply) }
+  }, [byChannel])
+
   // 비교 기간 대비 증감 — 사용자가 지정한 '기간 비교' 구간이 있을 때만 계산
   const prev = useMemo(() => {
     if (!filter.from && !filter.to) return null
@@ -115,6 +124,15 @@ export default function Dashboard({ data, loading }) {
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr>
+              <td>합계</td><td>{totalSupply}</td><td>{totalTickets}</td><td>{totalVisit}</td>
+              <td className="num">{pct(totalVisit, totalSupply).toFixed(1)}%</td>
+              <td className="num strong">{overallConv}%</td>
+              <td className="num cancel">{totalCancel}</td>
+              <td className="num cancel">{pct(totalCancel, totalSupply).toFixed(1)}%</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
 
@@ -180,6 +198,14 @@ export default function Dashboard({ data, loading }) {
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr>
+              <td>합계</td><td>{chTotal.supply}</td><td>{chTotal.booked}</td>
+              <td className="num cancel">{chTotal.cancel}</td>
+              <td className="num">{chTotal.rate.toFixed(1)}%</td>
+              <td className="num cancel">{chTotal.cancelRate.toFixed(1)}%</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
