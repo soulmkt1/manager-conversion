@@ -248,6 +248,30 @@ export function splitChannelFromName(name, channelMap = DEFAULT_CHANNEL_MAP) {
   }
 }
 
+// 리콜 구역 안에 있어도 "공급(상담) 줄"처럼 생긴 것은 리콜 이름이 아니다.
+//   리콜 줄 : "강이빈", "Jojanghun"        (이름만)
+//   공급 줄 : "플 정이슬 전/ 내상 유도 중"  (채널토큰 + 이름 + 상태)
+// 주의: STATUS_START_MARKERS 를 그대로 쓰면 안 된다. '안','읽' 같은 1글자가 있어
+//       '안예진' 같은 진짜 이름을 오탐하고, '리콜'이 있어 'CUI HUILAN 리콜부'가 배제된다.
+const SUPPLY_LINE_WORDS = [
+  '부재', '취소', '카톡', '문자', '내상', '내원', '예약', '톡막', '톡부', '문부', '리톡',
+  '잠수', '중복', '진행', '확인', '통화', '답변', '상후', '고민', '비용', '금액',
+  '안받', '안읽', '거절', '끊음', '유도', '넘김', '불가', '전화', '수술',
+]
+// 리콜 이름 끝의 꼬리표 제거: "CUI HUILAN 리콜부" → "CUI HUILAN"
+export function stripRecallTag(name) {
+  return norm(name).replace(/\s*리콜(부|함|완료|예정)?$/, '').trim() || norm(name)
+}
+
+export function looksLikeSupplyLine(line, channelMap = DEFAULT_CHANNEL_MAP) {
+  const l = norm(line)
+  if (!l) return false
+  const toks = l.split(' ')
+  if (toks.length > 1 && Object.prototype.hasOwnProperty.call(channelMap, toks[0])) return true // 채널 토큰으로 시작
+  if (/[가-힣A-Za-z]\s*\//.test(l)) return true // 부위 슬래시 표기 (전/ 복/ 팔/)
+  return SUPPLY_LINE_WORDS.some((w) => l.includes(w))
+}
+
 export function classifyResult(status, rules = DEFAULT_RESULT_RULES) {
   const s = (status || '').toLowerCase()
   for (const rule of rules) {
@@ -442,6 +466,22 @@ export function parseReport(text, config = {}) {
   const recall = []
   const warnings = []
 
+  // 리콜 구역에서 발견된 '공급 형식' 줄을 공급으로 넣는다
+  function pushSupplyLine(line, date, mgr) {
+    const lead = parseLeadLine(line, channelMap)
+    if (!lead || !lead.name) return
+    supply.push({
+      report_date: date,
+      manager: mgr,
+      channel: lead.channel,
+      customer_name: lead.name,
+      status_raw: lead.status,
+      result_category: classifyResult(lead.status, resultRules),
+      is_duplicate: isDuplicateStatus(lead.status),
+      note: '',
+    })
+  }
+
   // 1) 블록 분할
   const blocks = []
   let cur = null
@@ -475,7 +515,9 @@ export function parseReport(text, config = {}) {
         if (!name) continue
         if (/^공급|^티켓팅|^내원|^전자차트|보고서/.test(name)) continue
         if (/^\d{1,2}\s*\/\s*\d{1,2}/.test(name) || /^\d{2}\/\d/.test(name)) continue // 잔여 날짜줄
-        recall.push({ report_date: date, manager: mgr, customer_name: name })
+        // 리콜 보고서 안이라도 공급(상담) 형식 줄이면 공급으로 보낸다
+        if (looksLikeSupplyLine(line, channelMap)) { pushSupplyLine(line, date, mgr); continue }
+        recall.push({ report_date: date, manager: mgr, customer_name: stripRecallTag(name) })
       }
       continue
     }
@@ -516,8 +558,10 @@ export function parseReport(text, config = {}) {
         const t = parseTicketLine(line)
         if (t && t.customer_name) ticketing.push({ report_date: date, manager: mgr, ...t })
       } else if (section === 'recall') {
-        // 리콜 명단은 공급(상담)에 섞지 않고 리콜로 분리
-        recall.push({ report_date: date, manager: mgr, customer_name: l })
+        // 리콜 명단은 공급(상담)에 섞지 않고 리콜로 분리.
+        // 단, 줄 모양이 공급이면(채널토큰·부위표기·상태어) 공급으로 보낸다.
+        if (looksLikeSupplyLine(l, channelMap)) pushSupplyLine(l, date, mgr)
+        else recall.push({ report_date: date, manager: mgr, customer_name: stripRecallTag(l) })
       }
     }
     summary.push(sum)

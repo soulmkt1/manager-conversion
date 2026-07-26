@@ -39,11 +39,16 @@ export default function Import({ onSaved }) {
     setBusy(true)
     setMsg('')
     try {
-      // 이미 저장된 보고서(일자+실장)와 겹치는지 확인
-      const existing = await fetchAll('summary')
-      const existKeys = new Set(existing.map((s) => `${s.report_date}|${s.manager}`))
-      const dupKeys = [...new Set(parsed.summary.map((s) => `${s.report_date}|${s.manager}`))]
-        .filter((k) => existKeys.has(k))
+      // 이미 저장된 보고서(일자+실장)와 겹치는지 확인.
+      // 리콜/일본 보고서는 summary(요약)를 만들지 않으므로 그 테이블들도 함께 봐야
+      // 같은 보고서를 두 번 저장하는 것을 잡을 수 있다.
+      const [exSummary, exRecall, exJapan] = await Promise.all([
+        fetchAll('summary'), fetchAll('recall'), fetchAll('japan'),
+      ])
+      const k = (r) => `${r.report_date}|${r.manager}`
+      const existKeys = new Set([...exSummary, ...exRecall, ...exJapan].map(k))
+      const dupKeys = [...new Set([...parsed.summary, ...parsed.recall, ...parsed.japan].map(k))]
+        .filter((key) => existKeys.has(key))
       if (dupKeys.length > 0) {
         setConflict({ keys: dupKeys })
         setBusy(false)
@@ -71,8 +76,10 @@ export default function Import({ onSaved }) {
     try { await doSave(p) } catch (e) { setMsg('❌ 저장 실패: ' + (e.message || e)); setBusy(false) }
   }
 
-  // 중복 감수하고 전부 저장
+  // 중복 감수하고 전부 저장 (실수로 두 번 저장되는 것을 막기 위해 한 번 더 확인)
   async function saveAnyway() {
+    const n = conflict?.keys?.length || 0
+    if (!confirm(`이미 저장된 보고서 ${n}건과 겹칩니다.\n그대로 저장하면 같은 내용이 두 번 쌓입니다.\n\n정말 전부 저장할까요?`)) return
     setBusy(true)
     try { await doSave(parsed) } catch (e) { setMsg('❌ 저장 실패: ' + (e.message || e)); setBusy(false) }
   }
