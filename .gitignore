@@ -6,3 +6,4 @@ server/bin
 .claude
 .DS_Store
 *.log
+공급-중복목록.csv

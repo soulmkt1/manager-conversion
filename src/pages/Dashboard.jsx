@@ -112,7 +112,7 @@ export default function Dashboard({ data, loading }) {
           </ResponsiveContainer>
         </div>
         <table className="grid tight center-head data-left">
-          <thead><tr><th>실장</th><th>공급</th><th>티켓팅(고객)</th><th>내원</th><th>내원율</th><th>전환율</th><th>취소</th><th>취소율</th></tr></thead>
+          <thead><tr><th>실장</th><th>공급(중복 포함)</th><th>티켓팅(고객)</th><th>내원</th><th>내원율</th><th>전환율</th><th>취소</th><th>취소율</th></tr></thead>
           <tbody>
             {mgr.map((r) => (
               <tr key={r.manager}>
@@ -187,7 +187,7 @@ export default function Dashboard({ data, loading }) {
           </ResponsiveContainer>
         </div>
         <table className="grid tight center-head data-left">
-          <thead><tr><th>채널</th><th>공급</th><th>내상·예약</th><th>취소</th><th>예약전환율</th><th>취소율</th></tr></thead>
+          <thead><tr><th>채널</th><th>공급(중복 포함)</th><th>내상·예약</th><th>취소</th><th>예약전환율</th><th>취소율</th></tr></thead>
           <tbody>
             {byChannel.map((r) => (
               <tr key={r.channel}>
